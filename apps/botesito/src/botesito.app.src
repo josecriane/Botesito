@@ -1,0 +1,13 @@
+{application, botesito,
+ [{description, "Botesito telegram bot"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, {botesito_app, []}},
+  {applications,
+   [kernel, stdlib, runtime_tools, cowboy, jiffy]},
+  {env,[]},
+  {modules, []},
+
+  {licenses, ["Apache 2.0"]},
+  {links, []}
+ ]}.
