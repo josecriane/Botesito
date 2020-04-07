@@ -6,67 +6,64 @@
 %%%-------------------------------------------------------------------
 -module(botesito_parser).
 
--behaviour(gen_server).
-
 -include("telegram_model.hrl").
 
--export([start_link/0,
-  parse_data/1]).
+-export([parse_data/1]).
 
--export([init/1,
-  handle_call/3,
-  handle_cast/2,
-  handle_info/2,
-  terminate/2,
-  code_change/3]).
-
--define(SERVER, ?MODULE).
-
--record(botesito_parser_state, {}).
-
-%%%===================================================================
-%%% Spawning and gen_server implementation
-%%%===================================================================
-
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
-
--spec parse_data(Data :: binary()) -> ok.
+-spec parse_data(Data :: binary()) -> {ok, Update :: #teleg_update{}}.
 parse_data(Data) ->
-  JsonUpdates = jiffy:decode(Data),
-  parse_json(JsonUpdates),
-  ok.
-
-%% ------------------------------------------------------------------
-%% gen_server Function Definitions
-%% ------------------------------------------------------------------
-init([]) ->
-  {ok, #botesito_parser_state{}}.
-
-handle_call(_Request, _From, State = #botesito_parser_state{}) ->
-  {reply, ok, State}.
-
-handle_cast(_Request, State = #botesito_parser_state{}) ->
-  {noreply, State}.
-
-handle_info(_Info, State = #botesito_parser_state{}) ->
-  {noreply, State}.
-
-terminate(_Reason, _State = #botesito_parser_state{}) ->
-  ok.
-
-code_change(_OldVsn, State = #botesito_parser_state{}, _Extra) ->
-  {ok, State}.
+  JsonUpdate = jiffy:decode(Data),
+  parse_json(JsonUpdate).
 
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
 parse_json(JsonUpdates) ->
-  io:format(JsonUpdates).
+  [json_to_update(JsonUpdate, #teleg_update{}) || {JsonUpdate} <- JsonUpdates].
 
-%%  [json_to_update(JsonUpdate, #teleg_update{}) || {JsonUpdate} <- JsonUpdates].
+json_to_update([], Update) ->
+  Update;
+json_to_update([{<<"update_id">>, V}|Json], Update) ->
+  json_to_update(Json, Update#teleg_update{id = V});
+json_to_update([{<<"message">>, {V}}|Json], Update) ->
+  json_to_update(Json, Update#teleg_update{message = json_to_message(V, #teleg_message{})});
+json_to_update([_|Json], Update) ->
+  json_to_update(Json, Update).
 
-%%json_to_update([], Update) ->
-%%  Update;
-%%json_to_update([_|Tail], Update) ->
-%%  json_to_update(Tail, Update).
+json_to_message([], Message) ->
+  Message;
+json_to_message([{<<"message_id">>, V}|Json], Message) ->
+  json_to_message(Json, Message#teleg_message{id = V});
+json_to_message([{<<"from">>, {V}}|Json], Message) ->
+  json_to_message(Json, Message#teleg_message{from = json_to_user(V, #teleg_user{})});
+json_to_message([{<<"chat">>, {V}}|Json], Message) ->
+  json_to_message(Json, Message#teleg_message{chat = json_to_chat(V, #teleg_chat{})});
+json_to_message([{<<"text">>, V}|Json], Message) ->
+  json_to_message(Json, Message#teleg_message{text = V});
+json_to_message([_|Json], Message) ->
+  json_to_message(Json, Message).
+
+json_to_user([], User) ->
+  User;
+json_to_user([{<<"id">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{id = V});
+json_to_user([{<<"is_bot">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{is_bot = V});
+json_to_user([{<<"first_name">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{first_name = V});
+json_to_user([{<<"last_name">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{last_name = V});
+json_to_user([{<<"username">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{username = V});
+json_to_user([{<<"language_code">>, V}|Json], User) ->
+  json_to_user(Json, User#teleg_user{language_code = V});
+json_to_user([_|Json], User) ->
+  json_to_user(Json, User).
+
+json_to_chat([], Chat) ->
+  Chat;
+json_to_chat([{<<"id">>, V}|Json], Chat) ->
+  json_to_chat(Json, Chat#teleg_chat{id = V});
+json_to_chat([_|Json], Chat) ->
+  json_to_chat(Json, Chat).

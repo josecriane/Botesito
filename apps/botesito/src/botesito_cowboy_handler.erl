@@ -13,11 +13,14 @@
 %%--------------------------------------------------------------------
 init(Req0, State) ->
   <<"POST">> = cowboy_req:method(Req0),
-  {ok, Data, _} = cowboy_req:read_body(Req0),
-  Req = cowboy_req:reply(200, #{}, "", Req0),
-  io:format(Data),
-  botesito_parser:parse_updates(Data),
+  {ok, Data, Req} = cowboy_req:read_body(Req0),
+  JsonUpdates = botesito_parser:parse_data(Data),
+  % handle_updates(JsonUpdates) // Exec on other thread
+  Req2 = case JsonUpdates of
+    [_] ->
+      cowboy_req:reply(200, Req);
+    _ ->
+      cowboy_req:reply(422, Req)
+  end,
 
-  {ok, Req, State}.
-
-
+  {ok, Req2, State}.

@@ -17,5 +17,13 @@ test:
 release:
 	@$(REBAR3) release
 
-run:
-	@$(REBAR3) shell --apps botesito
+
+
+
+
+
+
+
+
+
+
