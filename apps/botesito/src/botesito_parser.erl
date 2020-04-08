@@ -10,7 +10,6 @@
 
 -export([parse_data/1]).
 
--spec parse_data(Data :: binary()) -> {ok, Update :: #teleg_update{}}.
 parse_data(Data) ->
   JsonUpdate = jiffy:decode(Data),
   parse_json(JsonUpdate).
@@ -19,8 +18,11 @@ parse_data(Data) ->
 %%% Internal functions
 %%%===================================================================
 
-parse_json(JsonUpdates) ->
-  [json_to_update(JsonUpdate, #teleg_update{}) || {JsonUpdate} <- JsonUpdates].
+parse_json(JsonUpdates) when is_list(JsonUpdates) ->
+  Updates = [json_to_update(JsonUpdate, #teleg_update{}) || {JsonUpdate} <- JsonUpdates],
+  lists:filter(fun(Update) -> Update#teleg_update.id /= 0 end, Updates);
+parse_json(JsonUpdate) ->
+  parse_json([JsonUpdate]).
 
 json_to_update([], Update) ->
   Update;
@@ -44,7 +46,7 @@ json_to_message([{<<"text">>, V}|Json], Message) ->
 json_to_message([_|Json], Message) ->
   json_to_message(Json, Message).
 
-json_to_user([], User) ->
+json_to_user([], User) when User#teleg_user.id /= 0 ->
   User;
 json_to_user([{<<"id">>, V}|Json], User) ->
   json_to_user(Json, User#teleg_user{id = V});

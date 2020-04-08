@@ -16,11 +16,9 @@ init(Req0, State) ->
   {ok, Data, Req} = cowboy_req:read_body(Req0),
   JsonUpdates = botesito_parser:parse_data(Data),
   % handle_updates(JsonUpdates) // Exec on other thread
-  Req2 = case JsonUpdates of
-    [_] ->
-      cowboy_req:reply(200, Req);
-    _ ->
-      cowboy_req:reply(422, Req)
-  end,
+  Req2 = case length(JsonUpdates) of
+           0 -> cowboy_req:reply(422, Req);
+           _ -> cowboy_req:reply(200, Req)
+         end,
 
   {ok, Req2, State}.

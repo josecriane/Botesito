@@ -12,7 +12,8 @@ suite() ->
 
 all() ->
   [parse_update,
-  parse_update_err].
+    parse_single_update,
+    parse_update_err].
 
 init_per_suite(Config) ->
   {ok, AppStartList} = application:ensure_all_started(botesito),
@@ -28,6 +29,10 @@ end_per_suite(Config) ->
 %% Test that can parse a update array.
 parse_update(_Config) ->
 Status = post_update(ct:get_config(json_start_message)),
+  200 = Status.
+
+parse_single_update(_Config) ->
+  Status = post_update(ct:get_config(json_single_update)),
   200 = Status.
 
 parse_update_err(_Config) ->
