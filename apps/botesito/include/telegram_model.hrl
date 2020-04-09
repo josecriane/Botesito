@@ -9,7 +9,17 @@
 }).
 
 -record(teleg_chat, {
-  id = 0 :: integer()
+  id = 0 :: integer(),
+  type = private :: private | group | supergroup | channel,
+  title :: undefined | string(),
+  username :: undefined | string(),
+  first_name :: undefined | string(),
+  last_name :: undefined | string(),
+%%  photo :: undefined | #teleg_chat_photo{},
+  description :: undefined | string(),
+  invite_link :: undefined | string(),
+  pinned_message :: undefined | tuple() % tuple = teleg_message
+%%  permissions :: undefined | #teleg_chat_permissions,
 }).
 
 -record(teleg_message, {

@@ -28,8 +28,13 @@ end_per_suite(Config) ->
 %%--------------------------------------------------------------------
 %% Test that can parse a update array.
 parse_update(_Config) ->
-Status = post_update(ct:get_config(json_start_message)),
+  Status = post_update(ct:get_config(json_start_message)),
   200 = Status.
+
+parse_two_updates(_Config) ->
+  Status1 = post_update(ct:get_config(json_start_message)),
+  Status2 = post_update(ct:get_config(json_start_message)),
+  {200, 200} = {Status1, Status2}.
 
 parse_single_update(_Config) ->
   Status = post_update(ct:get_config(json_single_update)),
