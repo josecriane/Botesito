@@ -60,7 +60,7 @@ handle_cast({new_message, Update = #teleg_update{}}, State = #srv_state{}) ->
       botesito_chat_statem:new_message(Pid, Update),
       State;
     error ->
-      {ok, Pid} = botesito_chat_statem:start_link(ChatId),
+      Pid = create_chat_monitor(ChatId),
       NewMap = maps:put(ChatId, Pid, State#srv_state.chat_pids),
       botesito_chat_statem:new_message(Pid, Update),
       State#srv_state{chat_pids =  NewMap}
@@ -81,3 +81,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+create_chat_monitor(ChatId) ->
+  {ok, Pid} = botesito_chat_statem:start_link(ChatId),
+  Pid.

@@ -30,6 +30,10 @@
   chat_active/3
 ]).
 
+-export([
+  handle_update/1
+]).
+
 -define(SERVER, ?MODULE).
 
 -record(chat_statem_state, {chatId}).
@@ -61,11 +65,40 @@ code_change(_OldVsn, StateName, State = #chat_statem_state{}, _Extra) ->
   {ok, StateName, State}.
 
 %%%===================================================================
-%%% Internal functions
+%%% Internal states
 %%%===================================================================
-chat_active(_EventType, {new_message, _Update = #teleg_update{}}, State = #chat_statem_state{}) ->
+chat_active(_EventType, {new_message, Update = #teleg_update{}}, State = #chat_statem_state{}) ->
+  handle_update(Update),
   {next_state, chat_active, State};
 chat_active(_EventType, _EventContent, _State) ->
   {repeat_state_and_data, []}.
-%%  NextStateName = next_state,
-%%  {next_state, NextStateName, State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+handle_update(Update) ->
+  Message = Update#teleg_update.message,
+  handle_message(Message).
+
+handle_message(Message = #teleg_message{text = <<"/start">>}) ->
+  {ok, response_start(Message)};
+handle_message(Message = #teleg_message{text = <<"/help">>}) ->
+  {ok, response_help(Message)};
+handle_message(Message = #teleg_message{}) ->
+  case string:slice(Message#teleg_message.text, 0, 1) of
+    <<"/">> -> {ok, response_help(Message)};
+    _ -> {no_handle, <<"">>}
+  end.
+
+
+%%%===================================================================
+%%% Response functions
+%%%===================================================================
+response_start(Message = #teleg_message{}) ->
+  User = Message#teleg_message.from,
+  localized_utils:str(start, User#teleg_user.language_code).
+
+response_help(Message = #teleg_message{}) ->
+  User = Message#teleg_message.from,
+  localized_utils:str(help, User#teleg_user.language_code).
+
