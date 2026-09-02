@@ -1,0 +1,21 @@
+# Run the bot as a plain container.
+#
+#   cp .env.example .env   # fill in the three values
+#   docker compose up --build
+#   curl http://localhost:8080/healthz
+services:
+  botesito:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      ssh:
+        - default
+    image: botesito:0.1.0
+    ports:
+      - "8080:8080"
+    environment:
+      BOTESITO_API_TOKEN: ${BOTESITO_API_TOKEN:?set it in .env}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?set it in .env}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?set it in .env}
+      TZ: ${TZ:-Europe/Madrid}
+    restart: unless-stopped

@@ -1,0 +1,136 @@
+openapi: "3.0.3"
+
+info:
+  title: Botesito
+  version: "0.1.0"
+  description: |
+    REST front-end for a Telegram bot. Callers POST a message and the bot
+    delivers it to the chat configured server-side.
+
+    Conventions:
+      * snake_case for every field name.
+      * Bearer token in the `authorization` header for every route except
+        `/healthz`.
+      * Errors always carry `code` + `message`.
+
+servers:
+  - url: http://localhost:8080
+    description: Local dev server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: health
+  - name: messages
+
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      tags: [health]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: Service is up.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /messages:
+    post:
+      operationId: send_message
+      tags: [messages]
+      summary: Deliver a message to the configured Telegram chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageInput" }
+      responses:
+        "201":
+          description: Message delivered.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          $ref: "#/components/responses/UpstreamError"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UpstreamError:
+      description: Telegram rejected or failed the call.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unavailable:
+      description: The bot has no token or chat configured.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+
+    Health:
+      type: object
+      required: [status, telegram]
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        telegram: { type: string, enum: [ok, unconfigured] }
+
+    MessageInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        parse_mode:
+          type: string
+          enum: [plain, markdown, html]
+          description: How Telegram should render `text`. Defaults to plain.
+        silent:
+          type: boolean
+          description: Deliver without a notification sound.
+        preview_links:
+          type: boolean
+          description: Render link previews. Defaults to false.
+
+    Message:
+      type: object
+      required: [message_id, chat_id, sent_at, text]
+      properties:
+        message_id: { type: integer }
+        chat_id: { type: integer }
+        sent_at: { type: string, format: date-time }
+        text: { type: string }

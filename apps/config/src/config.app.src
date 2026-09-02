@@ -1,0 +1,7 @@
+{application, config, [
+    {description, "YAML config validators for Botesito"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [kernel, stdlib, conf]},
+    {modules, []}
+]}.

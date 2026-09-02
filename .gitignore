@@ -1,0 +1,10 @@
+_build/
+.rebar3/
+rebar3.crashdump
+erl_crash.dump
+*.beam
+.DS_Store
+data/
+config/local/botesito.config.yml
+Makefile.local
+.env

@@ -1,0 +1,15 @@
+{application, telegram, [
+    {description, "Telegram Bot API client"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        nhttpc
+    ]},
+    {env, [
+        {bot_token, undefined},
+        {chat_id, undefined}
+    ]},
+    {modules, []}
+]}.

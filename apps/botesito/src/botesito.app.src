@@ -1,0 +1,22 @@
+{application, botesito, [
+    {description, "REST front-end for a Telegram bot"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {botesito_app, []}},
+    {applications, [
+        kernel,
+        stdlib,
+        conf,
+        nhttp_erf,
+        nhttpc,
+        telegram
+    ]},
+    {env, [
+        {port, 8080},
+        {spec_path, <<"docs/openapi.json">>},
+        {api_token, undefined}
+    ]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.
