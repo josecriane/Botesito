@@ -36,7 +36,9 @@ uppercases_status() ->
     ?assertMatch(<<"RESOLVED 1 alert\n\n", _/binary>>, Text).
 
 counts_singular() ->
-    ?assertMatch(<<"FIRING 1 alert\n", _/binary>>, botesito_alert_manager:format(webhook([alert()]))).
+    ?assertMatch(
+        <<"FIRING 1 alert\n", _/binary>>, botesito_alert_manager:format(webhook([alert()]))
+    ).
 
 counts_plural() ->
     Text = botesito_alert_manager:format(webhook([alert(), alert()])),
