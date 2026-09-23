@@ -2,6 +2,7 @@
 
 -export([
     healthz/1,
+    receive_alerts/1,
     send_message/1
 ]).
 
@@ -16,19 +17,29 @@ health_status(ok) -> <<"ok">>;
 health_status(unconfigured) -> <<"degraded">>.
 
 send_message(#{body := Body} = Request) ->
+    authenticated(Request, fun() ->
+        deliver(maps:get(<<"text">>, Body), send_opts(Body))
+    end).
+
+receive_alerts(#{body := Body} = Request) ->
+    authenticated(Request, fun() ->
+        deliver(botesito_alert_manager:format(Body), #{})
+    end).
+
+authenticated(Request, Deliver) ->
     case botesito_auth:authenticate(Request) of
-        {error, unauthorized} ->
-            unauthorized();
-        ok ->
-            Text = maps:get(<<"text">>, Body),
-            case botesito_app:send_message(Text, send_opts(Body)) of
-                {ok, Result} ->
-                    {201, [], render(Result, Text)};
-                {error, unconfigured} ->
-                    unavailable();
-                {error, Reason} ->
-                    upstream_error(Reason)
-            end
+        {error, unauthorized} -> unauthorized();
+        ok -> Deliver()
+    end.
+
+deliver(Text, Opts) ->
+    case botesito_app:send_message(Text, Opts) of
+        {ok, Result} ->
+            {201, [], render(Result, Text)};
+        {error, unconfigured} ->
+            unavailable();
+        {error, Reason} ->
+            upstream_error(Reason)
     end.
 
 send_opts(Body) ->

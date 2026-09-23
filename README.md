@@ -9,12 +9,13 @@ optional YAML configuration, `relx` release packaged into a container.
 
 ## API
 
-Two routes, described in `docs/openapi.yaml`.
+Three routes, described in `docs/openapi.yaml`.
 
     GET  /healthz    -> {"status": "ok", "telegram": "ok"}
     POST /messages   -> 201 {"message_id": .., "chat_id": .., "sent_at": .., "text": ..}
+    POST /alerts     -> 201 same body, rendered from an Alertmanager webhook
 
-`/messages` needs a bearer token; `/healthz` does not.
+`/messages` and `/alerts` need a bearer token; `/healthz` does not.
 
 ```bash
 curl -X POST http://localhost:8080/messages \
@@ -35,6 +36,45 @@ Body fields:
 Anything the schema rejects comes back as a 400 with a pointer to the
 offending field. A bad or missing token is a 401. Telegram failures are a
 502; a bot with no token or chat configured is a 503.
+
+### Alerts
+
+`/alerts` takes the payload Alertmanager posts to a webhook receiver and turns
+it into one plain-text message, so Alertmanager never needs a bot token or a
+chat id of its own:
+
+```yaml
+receivers:
+  - name: botesito
+    webhook_configs:
+      - url: http://botesito.extra.svc.cluster.local:8080/alerts
+        http_config:
+          authorization:
+            credentials_file: /etc/alertmanager/secrets/botesito/api_token
+```
+
+What arrives in the chat:
+
+    FIRING 2 alerts
+
+    [critical] KubePodCrashLooping
+    Pod extra/stirling-pdf is restarting
+    namespace=extra pod=stirling-pdf-0
+
+    [warning] BlackboxProbeFailed
+    Probe https://pdf.in.example.com/ failing
+    instance=https://pdf.in.example.com/
+
+The title is `[severity] alertname`, the second line is the `summary`
+annotation (falling back to `description`), and the third lists whichever of
+`namespace`, `pod`, `instance`, `node`, `service` and `job` the alert carries.
+Messages are sent without a parse mode: alert text is full of characters that
+Telegram's Markdown and HTML parsers reject, and a rejected message is a lost
+alert.
+
+Groups that would exceed Telegram's 4096 character limit are cut at whole
+alerts and the rest is reported as `+N more`, together with anything
+Alertmanager itself dropped in `truncatedAlerts`.
 
 ## Docker
 
