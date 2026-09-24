@@ -7,7 +7,11 @@
     {"BOTESITO_API_TOKEN", botesito, api_token, binary},
     {"BOTESITO_SPEC_PATH", botesito, spec_path, binary},
     {"TELEGRAM_BOT_TOKEN", telegram, bot_token, binary},
-    {"TELEGRAM_CHAT_ID", telegram, chat_id, chat_id}
+    {"TELEGRAM_CHAT_ID", telegram, chat_id, chat_id},
+    {"BOTESITO_CHATOPS", botesito, chatops, boolean},
+    {"BOTESITO_K8S_HOST", botesito, k8s_host, string},
+    {"BOTESITO_PROMETHEUS_HOST", botesito, prometheus_host, string},
+    {"BOTESITO_ALERTMANAGER_HOST", botesito, alertmanager_host, string}
 ]).
 
 -spec load() -> ok.
@@ -37,6 +41,16 @@ cast(binary, _Var, Raw) ->
 cast(port, Var, Raw) ->
     case string:to_integer(Raw) of
         {Port, ""} when Port > 0, Port =< 65535 -> Port;
+        _ -> erlang:error({bad_env_var, Var, Raw})
+    end;
+cast(string, _Var, Raw) ->
+    Raw;
+cast(boolean, Var, Raw) ->
+    case string:lowercase(Raw) of
+        "true" -> true;
+        "1" -> true;
+        "false" -> false;
+        "0" -> false;
         _ -> erlang:error({bad_env_var, Var, Raw})
     end;
 cast(chat_id, _Var, Raw) ->

@@ -4,6 +4,7 @@
     available/0,
     chat_id/0,
     get_me/0,
+    get_updates/2,
     send_message/2
 ]).
 
@@ -18,7 +19,9 @@
 
 -type message() :: #{binary() => term()}.
 
--export_type([message/0, send_opts/0]).
+-type update() :: #{binary() => term()}.
+
+-export_type([message/0, send_opts/0, update/0]).
 
 -spec available() -> boolean().
 available() ->
@@ -37,6 +40,21 @@ chat_id() ->
 -spec get_me() -> {ok, message()} | {error, term()}.
 get_me() ->
     call(<<"getMe">>, #{}).
+
+-spec get_updates(integer(), non_neg_integer()) ->
+    {ok, [update()]} | {error, term()}.
+get_updates(Offset, TimeoutSeconds) when is_integer(Offset), is_integer(TimeoutSeconds) ->
+    Payload = #{
+        <<"offset">> => Offset,
+        <<"timeout">> => TimeoutSeconds,
+        <<"allowed_updates">> => [<<"message">>]
+    },
+    Opts = #{timeouts => #{request => (TimeoutSeconds + 10) * 1000}},
+    case call(<<"getUpdates">>, Payload, Opts) of
+        {ok, Updates} when is_list(Updates) -> {ok, Updates};
+        {ok, Other} -> {error, {unexpected_result, Other}};
+        {error, _} = Err -> Err
+    end.
 
 -spec send_message(binary(), send_opts()) ->
     {ok, message()} | {error, term()}.
@@ -76,6 +94,9 @@ maybe_put(_Key, undefined, Map) -> Map;
 maybe_put(Key, Value, Map) -> Map#{Key => Value}.
 
 call(Method, Payload) ->
+    call(Method, Payload, #{}).
+
+call(Method, Payload, ExtraOpts) ->
     case bot_token() of
         undefined ->
             {error, missing_credentials};
@@ -86,7 +107,7 @@ call(Method, Payload) ->
                 {<<"content-type">>, <<"application/json">>},
                 {<<"accept">>, <<"application/json">>}
             ],
-            Opts = #{via => {pool, ?POOL}, headers => Headers},
+            Opts = maps:merge(ExtraOpts, #{via => {pool, ?POOL}, headers => Headers}),
             handle_response(nhttpc:post(Url, Body, Opts))
     end.
 

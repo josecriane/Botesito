@@ -3,7 +3,7 @@
 -include Makefile.local
 
 IMAGE    ?= botesito
-TAG      ?= 0.1.0
+TAG      ?= 0.2.0
 REGISTRY ?=
 
 spec:
@@ -26,7 +26,7 @@ fmt:
 	rebar3 fmt
 
 check:
-	rebar3 check
+	rebar3 as plt check
 
 test:
 	rebar3 test

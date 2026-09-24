@@ -43,7 +43,24 @@ init([]) ->
         modules => [botesito_pools_sup]
     },
 
-    {ok, {{one_for_one, 5, 10}, [PoolsSpec, ApiSpec]}}.
+    {ok, {{one_for_one, 5, 10}, [PoolsSpec, ApiSpec] ++ poller_specs()}}.
+
+poller_specs() ->
+    case application:get_env(botesito, chatops, false) of
+        false ->
+            [];
+        true ->
+            [
+                #{
+                    id => botesito_poller,
+                    start => {botesito_poller, start_link, []},
+                    restart => permanent,
+                    shutdown => 5000,
+                    type => worker,
+                    modules => [botesito_poller]
+                }
+            ]
+    end.
 
 assert_api_token() ->
     case application:get_env(botesito, api_token, undefined) of

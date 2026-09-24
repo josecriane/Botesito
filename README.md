@@ -1,7 +1,8 @@
 # botesito
 
 REST front-end for a Telegram bot. You POST a message, it lands in your
-Telegram chat.
+Telegram chat. Turn on chatops and it reads the chat too, answering
+questions about the cluster.
 
 Same stack as `hobbytracker_bff`: design-first `erf` server over
 `nhttp_erf`, `nhttpc` connection pools for outbound calls, `conf` for
@@ -76,6 +77,85 @@ Groups that would exceed Telegram's 4096 character limit are cut at whole
 alerts and the rest is reported as `+N more`, together with anything
 Alertmanager itself dropped in `truncatedAlerts`.
 
+## Chatops
+
+With `BOTESITO_CHATOPS=true` the bot also reads. It long-polls Telegram's
+`getUpdates`, so nothing has to be exposed to the internet, and it answers
+these commands in the configured chat:
+
+| command | what it does |
+|---|---|
+| `/status` | node readiness, how many pods are not Running (with names), firing alerts |
+| `/alerts` | firing alerts, `Watchdog` excluded |
+| `/logs <app>` | last 15 log lines of the first pod whose name starts with `<app>` |
+| `/restart <app>` | annotates the deployment's pod template, which rolls it, then reports how it went |
+| `/silence <alert> <30m\|2h\|1d>` | Alertmanager silence for that alertname, with a notice when it expires |
+| `/help` | the same list |
+
+Messages from any other chat are ignored and logged, and updates that arrived
+while the bot was down are discarded on startup: Telegram keeps them for 24
+hours and replaying yesterday's `/restart` is nobody's intent.
+
+### Follow-ups
+
+Two commands answer twice. `/restart` says it rolled the deployment and then,
+thirty seconds later, whether it actually came up; if it has not settled yet it
+waits another thirty, up to six times, so a slow image pull is reported when it
+lands instead of as a failure. `/silence` says it silenced the alert and speaks
+again when the silence expires.
+
+Those deferred messages are [`ntask`](https://github.com/nomasystems/ntask)
+tasks, running with its ETS store:
+
+```erlang
+{ntask, [
+    {store, ntask_store_ets},
+    {poll_interval_ms, 1000},
+    {bucket_granularity_ms, 1000},
+    {backlog_threshold_ms, 2000},
+    {retention_seconds, 120}
+]}
+```
+
+One-shot due times round up to `bucket_granularity_ms`, which is why it is 1000
+rather than the default 60000: a `/silence 30s` should not be reported a minute
+late. `backlog_threshold_ms` has to stay at or above twice the poll interval or
+every healthy claim looks like a backlog. The settings live in `sys.config`
+because `ntask` validates them as it starts, which happens before `botesito`
+does, so setting them from code would be too late.
+
+The ETS store keeps nothing across a restart, so a pod that dies with a
+follow-up pending never sends it. That is the trade for not running a database
+next to the bot, and it only ever costs a message, never an action: the command
+itself already happened.
+
+The poll loop deliberately does not go through `ntask`. Telegram holds
+`getUpdates` open until something arrives, so the loop reopens the connection
+immediately and there is nothing to schedule; a supervisor restart is what
+resumes it. Scheduling that through a library whose non-goals include
+sub-second precision would add latency to every command and buy nothing, since
+a poll offset is worthless after a restart.
+
+### Cluster access
+
+Reading the cluster needs a service account. `/status`, `/logs` and `/restart`
+talk to the Kubernetes API with the token and CA mounted at
+`/var/run/secrets/kubernetes.io/serviceaccount`, so the bot needs `get`/`list`
+on nodes, pods and pod logs, plus `patch` on deployments for `/restart`.
+Alerts come from Prometheus and silences go to Alertmanager over plain HTTP
+inside the cluster.
+
+| variable | notes |
+|---|---|
+| `BOTESITO_CHATOPS` | `true` enables the poller; off by default |
+| `BOTESITO_K8S_HOST` | defaults to `kubernetes.default.svc` |
+| `BOTESITO_PROMETHEUS_HOST` | `host:port`, defaults to the kube-prometheus-stack service |
+| `BOTESITO_ALERTMANAGER_HOST` | `host:port`, defaults to the kube-prometheus-stack service |
+
+Without a service account the read commands answer with the error instead of
+crashing, so enabling chatops outside a cluster degrades to `/help` and
+`/silence` working and the rest reporting why they cannot.
+
 ## Docker
 
 The image is configured entirely through environment variables.
@@ -94,7 +174,7 @@ docker run --rm -p 8080:8080 \
   -e BOTESITO_API_TOKEN=... \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
-  botesito:0.1.0
+  botesito:0.2.0
 ```
 
 | variable | notes |
@@ -105,6 +185,7 @@ docker run --rm -p 8080:8080 \
 | `BOTESITO_PORT` | defaults to 8080 |
 | `BOTESITO_SPEC_PATH` | defaults to `docs/openapi.json`, resolved against `/app/release` |
 | `BOTESITO_CONFIG` | optional path to a YAML config, loaded before the variables above |
+| `BOTESITO_CHATOPS` | `true` turns on the Telegram poller, see [Chatops](#chatops) |
 
 The container refuses to start without `BOTESITO_API_TOKEN`: without it no
 request could ever succeed, so it fails loudly instead of answering 401 to
@@ -130,9 +211,15 @@ and needs an agent holding a key with access to the nomasystems repos.
 ```bash
 make shell        # config/dev/botesito.config.yml
 make shell-local  # config/local/botesito.config.yml (gitignored, put real tokens here)
-make check        # compile + fmt + xref + dialyzer + hank
+make check        # compile + fmt + xref + dialyzer + hank, under the plt profile
 make test
 ```
+
+`make check` runs `rebar3 as plt check` rather than `rebar3 check`. `ntask` keeps
+`nmongo` as an optional application, so it is not fetched, but rebar3 still wants
+it while it resolves `plt_apps, all_deps` and refuses to build the PLT without it.
+The `plt` profile pulls it in for that and nothing else, so the Mongo driver never
+reaches the release.
 
 Outside the container the config comes from a YAML file loaded by `conf`;
 the path lives in `config/*/sys.config`.
