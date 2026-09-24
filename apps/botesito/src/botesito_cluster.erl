@@ -3,12 +3,16 @@
 -export([
     api_host/0,
     nodes/0,
-    pods/0,
+    pod_count/0,
+    pods_not_running/0,
+    deployment_namespace/1,
     deployment_status/2,
     pod_logs/2,
     restart_deployment/2,
     service_account_dir/0
 ]).
+
+-dialyzer({no_match, handle_response/1}).
 
 -define(DEFAULT_HOST, "kubernetes.default.svc").
 -define(DEFAULT_SA_DIR, "/var/run/secrets/kubernetes.io/serviceaccount").
@@ -40,12 +44,37 @@ nodes() ->
         {error, _} = Err -> Err
     end.
 
--spec pods() -> {ok, [pod_info()]} | {error, term()}.
-pods() ->
-    case get_json(<<"/api/v1/pods">>) of
+-spec pod_count() -> {ok, non_neg_integer()} | {error, term()}.
+pod_count() ->
+    case get_json(<<"/api/v1/pods?limit=1">>) of
+        {ok, #{<<"items">> := Items, <<"metadata">> := Metadata}} ->
+            {ok, length(Items) + maps:get(<<"remainingItemCount">>, Metadata, 0)};
+        {ok, Other} ->
+            {error, {unexpected_body, Other}};
+        {error, _} = Err ->
+            Err
+    end.
+
+-spec pods_not_running() -> {ok, [pod_info()]} | {error, term()}.
+pods_not_running() ->
+    case get_json(<<"/api/v1/pods?fieldSelector=status.phase%21%3DRunning">>) of
         {ok, #{<<"items">> := Items}} -> {ok, [pod_info(Item) || Item <- Items]};
         {ok, Other} -> {error, {unexpected_body, Other}};
         {error, _} = Err -> Err
+    end.
+
+-spec deployment_namespace(binary()) -> {ok, binary()} | {error, term()}.
+deployment_namespace(Name) ->
+    Path = <<"/apis/apps/v1/deployments?fieldSelector=metadata.name%3D", Name/binary>>,
+    case get_json(Path) of
+        {ok, #{<<"items">> := [#{<<"metadata">> := #{<<"namespace">> := Namespace}} | _]}} ->
+            {ok, Namespace};
+        {ok, #{<<"items">> := []}} ->
+            {error, {not_found, Name}};
+        {ok, Other} ->
+            {error, {unexpected_body, Other}};
+        {error, _} = Err ->
+            Err
     end.
 
 -spec pod_logs(binary(), pos_integer()) -> {ok, binary()} | {error, term()}.
@@ -102,14 +131,41 @@ restart_deployment(Namespace, Name) ->
     end.
 
 app_pod(App) ->
-    case pods() of
+    case labelled_pod(App) of
+        {ok, _} = Found -> Found;
+        {error, {not_found, _}} -> named_pod(App);
+        {error, _} = Err -> Err
+    end.
+
+labelled_pod(App) ->
+    Path = <<
+        "/api/v1/pods?limit=1&labelSelector=app.kubernetes.io/name%3D",
+        App/binary
+    >>,
+    case get_json(Path) of
+        {ok, #{<<"items">> := [Item | _]}} -> {ok, pod_info(Item)};
+        {ok, #{<<"items">> := []}} -> {error, {not_found, App}};
+        {ok, Other} -> {error, {unexpected_body, Other}};
+        {error, _} = Err -> Err
+    end.
+
+named_pod(App) ->
+    case deployment_namespace(App) of
         {error, _} = Err ->
             Err;
-        {ok, Pods} ->
-            Matching = [P || #{name := Name} = P <- Pods, is_app_pod(Name, App)],
-            case Matching of
-                [] -> {error, {not_found, App}};
-                [Pod | _] -> {ok, Pod}
+        {ok, Namespace} ->
+            Path = <<"/api/v1/namespaces/", Namespace/binary, "/pods">>,
+            case get_json(Path) of
+                {ok, #{<<"items">> := Items}} ->
+                    Pods = [pod_info(Item) || Item <- Items],
+                    case [P || #{name := Name} = P <- Pods, is_app_pod(Name, App)] of
+                        [] -> {error, {not_found, App}};
+                        [Pod | _] -> {ok, Pod}
+                    end;
+                {ok, Other} ->
+                    {error, {unexpected_body, Other}};
+                {error, _} = Err ->
+                    Err
             end
     end.
 
@@ -175,6 +231,8 @@ request(Fun, Url, HeadersOrNoBody) ->
                         Extra -> Extra
                     end,
             Opts = #{
+                body_to => {fold, fun(Chunk, Acc) -> {continue, [Chunk | Acc]} end},
+                fold_init => [],
                 tls => #{cacertfile => ca_cert_file(), verify => verify_peer},
                 headers => Headers,
                 timeouts => #{request => 15000}
@@ -186,6 +244,12 @@ url(Path) ->
     Host = list_to_binary(api_host()),
     <<"https://", Host/binary, Path/binary>>.
 
+handle_response({ok, #{status := Status, body := {fold, Chunks}}}) when
+    Status >= 200, Status < 300
+->
+    {ok, iolist_to_binary(lists:reverse(Chunks))};
+handle_response({ok, #{status := Status, body := {fold, Chunks}}}) ->
+    {error, {k8s_error, Status, reason(iolist_to_binary(lists:reverse(Chunks)))}};
 handle_response({ok, #{status := Status, body := Body}}) when Status >= 200, Status < 300 ->
     {ok, iolist_to_binary(Body)};
 handle_response({ok, #{status := Status, body := Body}}) ->

@@ -85,7 +85,7 @@ these commands in the configured chat:
 
 | command | what it does |
 |---|---|
-| `/status` | node readiness, how many pods are not Running (with names), firing alerts |
+| `/status` | node readiness, pod counts with anything broken named, firing alerts |
 | `/alerts` | firing alerts, `Watchdog` excluded |
 | `/logs <app>` | last 15 log lines of the first pod whose name starts with `<app>` |
 | `/restart <app>` | annotates the deployment's pod template, which rolls it, then reports how it went |
@@ -138,6 +138,16 @@ a poll offset is worthless after a restart.
 
 ### Cluster access
 
+Every request asks for as little as the answer needs: pod counts come from a
+`limit=1` list and its `remainingItemCount`, what is not Running from a field
+selector, and the namespace of an app from a deployment lookup by name. Listing
+every pod in the cluster to count them is 1.5MB for a question that fits in a
+line, and it also timed out from inside the pod while the same request took 77ms
+with curl. The cause is in how the body is read: nhttpc's accumulating path stalls on
+responses from the API server above the HTTP/2 initial window of 65535 bytes, not always
+but often, while the same responses arrive in 181ms when the body is folded chunk by
+chunk. Cluster reads therefore fold, which also bounds how much is held at once.
+
 Reading the cluster needs a service account. `/status`, `/logs` and `/restart`
 talk to the Kubernetes API with the token and CA mounted at
 `/var/run/secrets/kubernetes.io/serviceaccount`, so the bot needs `get`/`list`
@@ -174,7 +184,7 @@ docker run --rm -p 8080:8080 \
   -e BOTESITO_API_TOKEN=... \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
-  botesito:0.2.1
+  botesito:0.2.3
 ```
 
 | variable | notes |

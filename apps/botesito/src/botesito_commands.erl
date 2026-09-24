@@ -88,7 +88,7 @@ run(help) ->
     >>;
 run(status) ->
     Nodes = render_nodes(botesito_cluster:nodes()),
-    Pods = render_pods(botesito_cluster:pods()),
+    Pods = render_pods(),
     Alerts = render_alerts(botesito_monitoring:firing_alerts()),
     <<Nodes/binary, "\n", Pods/binary, "\n", Alerts/binary>>;
 run(alerts) ->
@@ -101,23 +101,18 @@ run({logs, App}) ->
         {error, Reason} -> error_text(<<"logs">>, Reason)
     end;
 run({restart, App}) ->
-    case botesito_cluster:pods() of
+    case botesito_cluster:deployment_namespace(App) of
+        {error, {not_found, _}} ->
+            <<"no deployment named ", App/binary>>;
         {error, Reason} ->
             error_text(<<"restart">>, Reason);
-        {ok, Pods} ->
-            case
-                [Namespace || #{namespace := Namespace, name := Name} <- Pods, matches(Name, App)]
-            of
-                [] ->
-                    <<"no pod found for ", App/binary>>;
-                [Namespace | _] ->
-                    case botesito_cluster:restart_deployment(Namespace, App) of
-                        ok ->
-                            ok = botesito_followup:after_restart(Namespace, App),
-                            <<"rolled ", Namespace/binary, "/", App/binary, ", will report back">>;
-                        {error, Reason} ->
-                            error_text(<<"restart">>, Reason)
-                    end
+        {ok, Namespace} ->
+            case botesito_cluster:restart_deployment(Namespace, App) of
+                ok ->
+                    ok = botesito_followup:after_restart(Namespace, App),
+                    <<"rolled ", Namespace/binary, "/", App/binary, ", will report back">>;
+                {error, Reason} ->
+                    error_text(<<"restart">>, Reason)
             end
     end;
 run({silence, Alert, Seconds}) ->
@@ -134,46 +129,40 @@ run({usage, Usage}) ->
 run({unknown, Command}) ->
     <<Command/binary, " is not a command, try /help">>.
 
-matches(PodName, App) ->
-    Size = byte_size(App),
-    case PodName of
-        <<App:Size/binary, "-", _/binary>> -> true;
-        App -> true;
-        _ -> false
-    end.
-
 render_nodes({error, Reason}) ->
     error_text(<<"nodes">>, Reason);
 render_nodes({ok, Nodes}) ->
     Rendered = [<<Name/binary, " ", Ready/binary>> || #{name := Name, ready := Ready} <- Nodes],
     <<"nodes: ", (join(Rendered, <<", ">>))/binary>>.
 
-render_pods({error, Reason}) ->
-    error_text(<<"pods">>, Reason);
-render_pods({ok, Pods}) ->
-    Running = [P || #{phase := <<"Running">>} = P <- Pods],
-    Broken = [
-        P
-     || #{phase := Phase} = P <- Pods, Phase =/= <<"Running">>, Phase =/= <<"Succeeded">>
-    ],
-    Header = <<
-        "pods: ",
-        (integer_to_binary(length(Running)))/binary,
-        " running, ",
-        (integer_to_binary(length(Broken)))/binary,
-        " not"
-    >>,
-    case Broken of
-        [] ->
-            Header;
-        _ ->
-            Details = [
-                <<Namespace/binary, "/", Name/binary, " ", Phase/binary>>
-             || #{namespace := Namespace, name := Name, phase := Phase} <- Broken
-            ],
-            <<Header/binary, "\n  ", (join(Details, <<"\n  ">>))/binary>>
+render_pods() ->
+    case {botesito_cluster:pod_count(), botesito_cluster:pods_not_running()} of
+        {{error, Reason}, _} ->
+            error_text(<<"pods">>, Reason);
+        {_, {error, Reason}} ->
+            error_text(<<"pods">>, Reason);
+        {{ok, Total}, {ok, Others}} ->
+            Broken = [P || #{phase := Phase} = P <- Others, Phase =/= <<"Succeeded">>],
+            Header = <<
+                "pods: ",
+                (integer_to_binary(Total - length(Others)))/binary,
+                " running, ",
+                (integer_to_binary(length(Broken)))/binary,
+                " broken, ",
+                (integer_to_binary(length(Others) - length(Broken)))/binary,
+                " done"
+            >>,
+            case Broken of
+                [] ->
+                    Header;
+                _ ->
+                    Details = [
+                        <<Namespace/binary, "/", Name/binary, " ", Phase/binary>>
+                     || #{namespace := Namespace, name := Name, phase := Phase} <- Broken
+                    ],
+                    <<Header/binary, "\n  ", (join(Details, <<"\n  ">>))/binary>>
+            end
     end.
-
 render_alerts({error, Reason}) ->
     error_text(<<"alerts">>, Reason);
 render_alerts({ok, []}) ->

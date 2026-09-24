@@ -7,6 +7,8 @@
     silence/3
 ]).
 
+-dialyzer({no_match, handle_response/1}).
+
 -define(DEFAULT_PROMETHEUS, "kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090").
 -define(DEFAULT_ALERTMANAGER,
     "kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093"
@@ -27,7 +29,11 @@ alertmanager_host() ->
 -spec firing_alerts() -> {ok, [alert()]} | {error, term()}.
 firing_alerts() ->
     Url = url(prometheus_host(), <<"/api/v1/alerts">>),
-    Opts = #{timeouts => #{request => 15000}},
+    Opts = #{
+        body_to => {fold, fun(Chunk, Acc) -> {continue, [Chunk | Acc]} end},
+        fold_init => [],
+        timeouts => #{request => 15000}
+    },
     case handle_response(nhttpc:get(Url, Opts)) of
         {ok, Body} ->
             case decode(Body) of
@@ -62,6 +68,8 @@ silence(AlertName, Seconds, CreatedBy) ->
     Url = url(alertmanager_host(), <<"/api/v2/silences">>),
     Body = iolist_to_binary(json:encode(Payload)),
     Opts = #{
+        body_to => {fold, fun(Chunk, Acc) -> {continue, [Chunk | Acc]} end},
+        fold_init => [],
         headers => [{<<"content-type">>, <<"application/json">>}],
         timeouts => #{request => 15000}
     },
@@ -97,6 +105,12 @@ url(Host, Path) ->
 rfc3339(Seconds) ->
     list_to_binary(calendar:system_time_to_rfc3339(Seconds, [{offset, "Z"}])).
 
+handle_response({ok, #{status := Status, body := {fold, Chunks}}}) when
+    Status >= 200, Status < 300
+->
+    {ok, iolist_to_binary(lists:reverse(Chunks))};
+handle_response({ok, #{status := Status, body := {fold, Chunks}}}) ->
+    {error, {http_error, Status, iolist_to_binary(lists:reverse(Chunks))}};
 handle_response({ok, #{status := Status, body := Body}}) when Status >= 200, Status < 300 ->
     {ok, iolist_to_binary(Body)};
 handle_response({ok, #{status := Status, body := Body}}) ->
