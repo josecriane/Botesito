@@ -7,8 +7,6 @@
     silence/3
 ]).
 
--define(PROMETHEUS_POOL, prometheus_pool).
--define(ALERTMANAGER_POOL, alertmanager_pool).
 -define(DEFAULT_PROMETHEUS, "kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090").
 -define(DEFAULT_ALERTMANAGER,
     "kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093"
@@ -29,7 +27,7 @@ alertmanager_host() ->
 -spec firing_alerts() -> {ok, [alert()]} | {error, term()}.
 firing_alerts() ->
     Url = url(prometheus_host(), <<"/api/v1/alerts">>),
-    Opts = #{via => {pool, ?PROMETHEUS_POOL}, timeouts => #{request => 15000}},
+    Opts = #{timeouts => #{request => 15000}},
     case handle_response(nhttpc:get(Url, Opts)) of
         {ok, Body} ->
             case decode(Body) of
@@ -64,7 +62,6 @@ silence(AlertName, Seconds, CreatedBy) ->
     Url = url(alertmanager_host(), <<"/api/v2/silences">>),
     Body = iolist_to_binary(json:encode(Payload)),
     Opts = #{
-        via => {pool, ?ALERTMANAGER_POOL},
         headers => [{<<"content-type">>, <<"application/json">>}],
         timeouts => #{request => 15000}
     },

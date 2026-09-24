@@ -1,6 +1,6 @@
 {application, botesito, [
     {description, "REST front-end for a Telegram bot"},
-    {vsn, "0.2.0"},
+    {vsn, "0.2.1"},
     {registered, []},
     {mod, {botesito_app, []}},
     {applications, [

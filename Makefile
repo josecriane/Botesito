@@ -3,7 +3,7 @@
 -include Makefile.local
 
 IMAGE    ?= botesito
-TAG      ?= 0.2.0
+TAG      ?= 0.2.1
 REGISTRY ?=
 
 spec:

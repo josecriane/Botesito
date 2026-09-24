@@ -174,7 +174,7 @@ docker run --rm -p 8080:8080 \
   -e BOTESITO_API_TOKEN=... \
   -e TELEGRAM_BOT_TOKEN=... \
   -e TELEGRAM_CHAT_ID=... \
-  botesito:0.2.0
+  botesito:0.2.1
 ```
 
 | variable | notes |

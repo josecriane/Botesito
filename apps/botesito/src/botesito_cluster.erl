@@ -10,7 +10,6 @@
     service_account_dir/0
 ]).
 
--define(POOL, k8s_pool).
 -define(DEFAULT_HOST, "kubernetes.default.svc").
 -define(DEFAULT_SA_DIR, "/var/run/secrets/kubernetes.io/serviceaccount").
 
@@ -176,7 +175,7 @@ request(Fun, Url, HeadersOrNoBody) ->
                         Extra -> Extra
                     end,
             Opts = #{
-                via => {pool, ?POOL},
+                tls => #{cacertfile => ca_cert_file(), verify => verify_peer},
                 headers => Headers,
                 timeouts => #{request => 15000}
             },
@@ -199,6 +198,9 @@ reason(Body) ->
         {ok, #{<<"message">> := Message}} -> Message;
         _ -> Body
     end.
+
+ca_cert_file() ->
+    filename:join(service_account_dir(), "ca.crt").
 
 token() ->
     Path = filename:join(service_account_dir(), "token"),
