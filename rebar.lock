@@ -23,12 +23,18 @@
   {git,"https://github.com/nomasystems/ndto.git",
        {ref,"e67f44ac541470ddd650677acc50596060b55301"}},
   2},
- {<<"nhttp">>,{pkg,<<"nhttp">>,<<"1.0.4">>},0},
+ {<<"nhttp">>,
+  {git,"https://github.com/nomasystems/nhttp.git",
+       {ref,"f6803c1d173118236b3d78220fc29a1972fc365f"}},
+  0},
  {<<"nhttp_erf">>,
   {git,"git@github.com:nomasystems/nhttp_erf.git",
        {ref,"054d3cddf8a4a11fd216552a0ed48f3587d5b066"}},
   0},
- {<<"nhttp_lib">>,{pkg,<<"nhttp_lib">>,<<"1.0.5">>},0},
+ {<<"nhttp_lib">>,
+  {git,"https://github.com/nomasystems/nhttp_lib.git",
+       {ref,"b086510380886094bfd1edeb59c3ab5a6edf7382"}},
+  0},
  {<<"nhttpc">>,
   {git,"git@github.com:nomasystems/nhttpc.git",
        {ref,"f6f7409e3ab395b7740658283797c2ba78c94e2b"}},
@@ -55,8 +61,6 @@
   1}]}.
 [
 {pkg_hash,[
- {<<"nhttp">>, <<"52B4571B6FA30F9320A5B2DFDE30CAE85F6EC2F17DAA6F83DB23789DF4435182">>},
- {<<"nhttp_lib">>, <<"A535E56C1B64D5036521D87E4C0C018B406D7D9F2DD368F0B8049307BDF2ADE7">>},
  {<<"nquic">>, <<"1B25FD940CDF4BD7378B360484FA546D7967F60D8421CFDBEDD0774F6398D1D4">>},
  {<<"oidcc">>, <<"2047949832CA7984D6D9C218CC5F23E8096BF50EBB809124D3A01673EE2BFE12">>},
  {<<"opentelemetry_api">>, <<"63CA1742F92F00059298F478048DFB826F4B20D49534493D6919A0DB39B6DB04">>},
@@ -64,8 +68,6 @@
  {<<"telemetry">>, <<"FEDEBBAE410D715CF8E7062C96A1EF32EC22E764197F70CDA73D82778D61E7A2">>},
  {<<"telemetry_registry">>, <<"701576890320BE6428189BFF963E865E8F23E0FF3615EADE8F78662BE0FC003C">>}]},
 {pkg_hash_ext,[
- {<<"nhttp">>, <<"4FCF6C8796CADCE47DC769D5CBA2A4A7096A3B40778B942BFED0F85010FECC7F">>},
- {<<"nhttp_lib">>, <<"25445E33703E115B035CA3D355AF4927C78D2DB54635E335F800782D6E2303DD">>},
  {<<"nquic">>, <<"73E9675F9D1C1B2F182A961B3C689778CAD8BA178C63E57C6A23A1C5FDE427F2">>},
  {<<"oidcc">>, <<"E3F1ED91509FDEB31EC8B9DE4ECDA0E80CB68B463A9F5B7A9EE1EE40E521E445">>},
  {<<"opentelemetry_api">>, <<"3DFBBFAA2C2ED3121C5C483162836C4F9027DEF469C41578AF5EF32589FCFC58">>},
