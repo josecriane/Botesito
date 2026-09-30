@@ -12,8 +12,6 @@
     service_account_dir/0
 ]).
 
--dialyzer({no_match, handle_response/1}).
-
 -define(DEFAULT_HOST, "kubernetes.default.svc").
 -define(DEFAULT_SA_DIR, "/var/run/secrets/kubernetes.io/serviceaccount").
 
@@ -231,8 +229,6 @@ request(Fun, Url, HeadersOrNoBody) ->
                         Extra -> Extra
                     end,
             Opts = #{
-                body_to => {fold, fun(Chunk, Acc) -> {continue, [Chunk | Acc]} end},
-                fold_init => [],
                 tls => #{cacertfile => ca_cert_file(), verify => verify_peer},
                 headers => Headers,
                 timeouts => #{request => 15000}
@@ -244,12 +240,6 @@ url(Path) ->
     Host = list_to_binary(api_host()),
     <<"https://", Host/binary, Path/binary>>.
 
-handle_response({ok, #{status := Status, body := {fold, Chunks}}}) when
-    Status >= 200, Status < 300
-->
-    {ok, iolist_to_binary(lists:reverse(Chunks))};
-handle_response({ok, #{status := Status, body := {fold, Chunks}}}) ->
-    {error, {k8s_error, Status, reason(iolist_to_binary(lists:reverse(Chunks)))}};
 handle_response({ok, #{status := Status, body := Body}}) when Status >= 200, Status < 300 ->
     {ok, iolist_to_binary(Body)};
 handle_response({ok, #{status := Status, body := Body}}) ->
